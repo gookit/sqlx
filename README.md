@@ -2,6 +2,12 @@
 > (MIT, original copyright retained in [LICENSE](LICENSE)). The upstream history is kept;
 > import it as `github.com/gookit/sqlx`. Changes made here are listed in the commit log.
 
+## 与上游的差异
+
+- 模块路径为 `github.com/gookit/sqlx`，保留上游 API 与 MIT 许可证。
+- 默认 bind 注册表将纯 Go 的 `modernc.org/sqlite` 驱动名 `sqlite` 映射到 `QUESTION`；PostgreSQL 的 `pgx` 继续使用 `DOLLAR`。
+- 方言覆盖由 modernc SQLite focused tests 验证，测试不依赖 cgo。
+
 # sqlx
 
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/jmoiron/sqlx/tree/master.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/gh/jmoiron/sqlx/tree/master) [![Coverage Status](https://coveralls.io/repos/github/jmoiron/sqlx/badge.svg?branch=master)](https://coveralls.io/github/jmoiron/sqlx?branch=master) [![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/jmoiron/sqlx) [![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/jmoiron/sqlx/master/LICENSE)
