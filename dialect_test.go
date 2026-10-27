@@ -25,7 +25,7 @@ func TestModerncDialect(t *testing.T) {
 		assert.Equal(t, "SELECT * FROM people WHERE id = $1 AND name = $2", Rebind(BindType("pgx"), query))
 	})
 
-	t.Run("named select and get", func(t *testing.T) {
+	t.Run("named exec, select and get", func(t *testing.T) {
 		db, err := Open("sqlite", filepath.Join(t.TempDir(), "test.db"))
 		assert.NoErr(t, err)
 		if err != nil {

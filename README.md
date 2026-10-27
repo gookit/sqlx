@@ -56,7 +56,7 @@ will get major version number bumps.
 
 ## install
 
-    go get github.com/jmoiron/sqlx
+    go get github.com/gookit/sqlx
 
 ## issues
 
@@ -87,7 +87,7 @@ import (
     "log"
     
     _ "github.com/lib/pq"
-    "github.com/jmoiron/sqlx"
+    "github.com/gookit/sqlx"
 )
 
 var schema = `
