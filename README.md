@@ -1,3 +1,7 @@
+> **gookit/sqlx** is a maintained fork of [jmoiron/sqlx](https://github.com/jmoiron/sqlx)
+> (MIT, original copyright retained in [LICENSE](LICENSE)). The upstream history is kept;
+> import it as `github.com/gookit/sqlx`. Changes made here are listed in the commit log.
+
 # sqlx
 
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/jmoiron/sqlx/tree/master.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/gh/jmoiron/sqlx/tree/master) [![Coverage Status](https://coveralls.io/repos/github/jmoiron/sqlx/badge.svg?branch=master)](https://coveralls.io/github/jmoiron/sqlx?branch=master) [![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/jmoiron/sqlx) [![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/jmoiron/sqlx/master/LICENSE)
