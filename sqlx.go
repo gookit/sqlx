@@ -183,6 +183,12 @@ type Row struct {
 // Scan is a fixed implementation of sql.Row.Scan, which does not discard the
 // underlying error from the internal rows object if it exists.
 func (r *Row) Scan(dest ...any) error {
+	return r.scan(dest, false)
+}
+
+// scan scans the current row. rowAdvanced reports that the caller already advanced the
+// result set with rows.Next, so a missing row is not an error any more.
+func (r *Row) scan(dest []any, rowAdvanced bool) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -207,7 +213,7 @@ func (r *Row) Scan(dest ...any) error {
 		}
 	}
 
-	if !r.rows.Next() {
+	if !rowAdvanced && !r.rows.Next() {
 		if err := r.rows.Err(); err != nil {
 			return err
 		}
@@ -808,14 +814,31 @@ func (r *Row) scanAny(dest any, structOnly bool) error {
 	if f, err := missingFields(fields); err != nil && !r.unsafe {
 		return fmt.Errorf("missing destination name %s in %T", columns[f], dest)
 	}
-	values := make([]any, len(columns))
 
+	// Check the RawBytes rule before traversing the destination: a missing row must not
+	// change it, and the traversal allocates the pointer fields of the struct.
+	structMap := m.TypeMap(base)
+	rawBytesTyp := reflect.TypeOf(sql.RawBytes{})
+	for _, field := range fields {
+		if fi := structMap.GetByTraversal(field); fi != nil && fi.Field.Type == rawBytesTyp {
+			return errors.New("sql: RawBytes isn't allowed on Row.Scan")
+		}
+	}
+
+	if !r.rows.Next() {
+		if err := r.rows.Err(); err != nil {
+			return err
+		}
+		return sql.ErrNoRows
+	}
+
+	values := make([]any, len(columns))
 	err = fieldsByTraversal(v, fields, values, true)
 	if err != nil {
 		return err
 	}
 	// scan into the struct field pointers and append to our results
-	return r.Scan(values...)
+	return r.scan(values, true)
 }
 
 // StructScan a single Row into dest.
