@@ -72,15 +72,13 @@ func TestCompileNamedQueryPostgresCast(t *testing.T) {
 	}
 }
 
-// A cast that is not attached to a named parameter keeps the upstream behaviour: the
-// compiler collapses '::' to ':' (see the NOTE in compileNamedQuery), so
-// '2026-05-01'::timestamptz comes out as '2026-05-01':timestamptz and x::int as x:int.
-// That is a separate defect of the compiler, not something this port changes.
-func TestCompileNamedQueryCastCollapse(t *testing.T) {
+// A cast that is not attached to a named parameter keeps both colons; it used to be
+// collapsed to a single ':' ('x'::int came out as 'x':int, which is not valid SQL).
+func TestCompileNamedQueryKeepsCastColons(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{`SELECT '2026-05-01'::timestamptz AS starts_at`, `SELECT '2026-05-01':timestamptz AS starts_at`},
-		{`SELECT x::int`, `SELECT x:int`},
-		{`SELECT "::foo" FROM a`, `SELECT ":foo" FROM a`},
+		{`SELECT '2026-05-01'::timestamptz AS starts_at`, `SELECT '2026-05-01'::timestamptz AS starts_at`},
+		{`SELECT x::int`, `SELECT x::int`},
+		{`SELECT "::foo" FROM a`, `SELECT "::foo" FROM a`},
 	}
 	for _, c := range cases {
 		got, names, err := compileNamedQuery([]byte(c.in), QUESTION)
@@ -115,7 +113,7 @@ func TestNamedPostgresCast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := `SELECT ?::jsonb AS boundary, '2026-05-01':timestamptz AS starts_at, ?::int AS id`
+	want := `SELECT ?::jsonb AS boundary, '2026-05-01'::timestamptz AS starts_at, ?::int AS id`
 	if q != want {
 		t.Errorf("got query %q, want %q", q, want)
 	}

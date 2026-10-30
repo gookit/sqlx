@@ -393,11 +393,10 @@ func compileNamedQuery(qs []byte, bindType int) (query string, names []string, e
 				skipNext = true
 				continue
 			}
-			// this is the second ':' of a '::' escape sequence, append a ':'
-			// NOTE: this collapses '::' outside a named param to ':', so 'x'::int becomes
-			// 'x':int. Upstream behaves the same way and both spellings are kept here.
+			// this is the second ':' of a '::' escape sequence: keep both colons, a
+			// PostgreSQL `x::int` cast must survive the rewrite
 			if inName && i > 0 && qs[i-1] == ':' {
-				rebound = append(rebound, ':')
+				rebound = append(rebound, ':', ':')
 				inName = false
 				continue
 			} else if inName {
