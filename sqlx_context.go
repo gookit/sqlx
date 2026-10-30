@@ -16,7 +16,10 @@ func ConnectContext(ctx context.Context, driverName, dataSourceName string) (*DB
 		return db, err
 	}
 	err = db.PingContext(ctx)
-	return db, err
+	if err != nil {
+		return db, redactError(err)
+	}
+	return db, nil
 }
 
 // QueryerContext is an interface used by GetContext and SelectContext

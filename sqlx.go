@@ -284,7 +284,7 @@ func (db *DB) DriverName() string {
 func Open(driverName, dataSourceName string) (*DB, error) {
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
-		return nil, err
+		return nil, redactError(err)
 	}
 	return &DB{DB: db, driverName: driverName, Mapper: mapper()}, err
 }
@@ -677,7 +677,7 @@ func Connect(driverName, dataSourceName string) (*DB, error) {
 	err = db.Ping()
 	if err != nil {
 		db.Close()
-		return nil, err
+		return nil, redactError(err)
 	}
 	return db, nil
 }
