@@ -1,5 +1,4 @@
 //go:build go1.8
-// +build go1.8
 
 // The following environment variables, if set, will be used:
 //
@@ -506,7 +505,7 @@ func TestNamedQueryContext(t *testing.T) {
 		// strings are `` we use "" by default and swap out for MySQL
 		pdb := func(s string, db *DB) string {
 			if db.DriverName() == "mysql" {
-				return strings.Replace(s, `"`, "`", -1)
+				return strings.ReplaceAll(s, `"`, "`")
 			}
 			return s
 		}

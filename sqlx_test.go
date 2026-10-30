@@ -102,11 +102,11 @@ func (s Schema) Postgres() (string, string, string) {
 }
 
 func (s Schema) MySQL() (string, string, string) {
-	return strings.Replace(s.create, `"`, "`", -1), s.drop, `now()`
+	return strings.ReplaceAll(s.create, `"`, "`"), s.drop, `now()`
 }
 
 func (s Schema) Sqlite3() (string, string, string) {
-	return strings.Replace(s.create, `now()`, `CURRENT_TIMESTAMP`, -1), s.drop, `CURRENT_TIMESTAMP`
+	return strings.ReplaceAll(s.create, `now()`, `CURRENT_TIMESTAMP`), s.drop, `CURRENT_TIMESTAMP`
 }
 
 var defaultSchema = Schema{
@@ -679,7 +679,7 @@ func TestNamedQuery(t *testing.T) {
 		// strings are `` we use "" by default and swap out for MySQL
 		pdb := func(s string, db *DB) string {
 			if db.DriverName() == "mysql" {
-				return strings.Replace(s, `"`, "`", -1)
+				return strings.ReplaceAll(s, `"`, "`")
 			}
 			return s
 		}
