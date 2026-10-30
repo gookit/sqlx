@@ -1,223 +1,162 @@
-> **gookit/sqlx** is a maintained fork of [jmoiron/sqlx](https://github.com/jmoiron/sqlx)
-> (MIT, original copyright retained in [LICENSE](LICENSE)). The upstream history is kept;
-> import it as `github.com/gookit/sqlx`. Changes made here are listed in the commit log.
-
-## 与上游的差异
-
-- 模块路径为 `github.com/gookit/sqlx`，保留上游 API 与 MIT 许可证。
-- 默认 bind 注册表将纯 Go 的 `modernc.org/sqlite` 驱动名 `sqlite` 映射到 `QUESTION`；PostgreSQL 的 `pgx` 继续使用 `DOLLAR`。
-- 方言覆盖由 modernc SQLite focused tests 验证，测试不依赖 cgo。
-
 # sqlx
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/gookit/sqlx.svg)](https://pkg.go.dev/github.com/gookit/sqlx) [![license](https://img.shields.io/badge/license-MIT-red.svg)](LICENSE)
+[![Go Reference](https://pkg.go.dev/badge/github.com/gookit/sqlx.svg)](https://pkg.go.dev/github.com/gookit/sqlx)
+[![Go version](https://img.shields.io/github/go-mod/go-version/gookit/sqlx?style=flat-square)](go.mod)
+[![Actions Status](https://github.com/gookit/sqlx/actions/workflows/go.yml/badge.svg)](https://github.com/gookit/sqlx/actions)
+[![License](https://img.shields.io/badge/license-MIT-red.svg)](LICENSE)
 
-sqlx is a library which provides a set of extensions on go's standard
-`database/sql` library.  The sqlx versions of `sql.DB`, `sql.TX`, `sql.Stmt`,
-et al. all leave the underlying interfaces untouched, so that their interfaces
-are a superset on the standard ones.  This makes it relatively painless to
-integrate existing codebases using database/sql with sqlx.
+`sqlx` adds struct scanning and named parameters on top of Go's `database/sql`. It is a
+maintained fork of [jmoiron/sqlx](https://github.com/jmoiron/sqlx) (MIT, the original
+copyright is kept in [LICENSE](LICENSE)); import it as `github.com/gookit/sqlx`.
 
-Major additional concepts are:
+> [中文说明](README.zh-CN.md)
 
-* Marshal rows into structs (with embedded struct support), maps, and slices
-* Named parameter support including prepared statements
-* `Get` and `Select` to go quickly from query to struct/slice
+The `sqlx` versions of `sql.DB`, `sql.Tx`, `sql.Stmt` and `sql.Conn` leave the underlying
+interfaces untouched, so they are a superset of the standard ones and existing
+`database/sql` code keeps working.
 
-In addition to the [godoc API documentation](https://pkg.go.dev/github.com/gookit/sqlx),
-there is also some [user documentation](http://jmoiron.github.io/sqlx/) that
-explains how to use `database/sql` along with sqlx.
+## Features
 
-## Recent Changes
+- Scan a row into a struct (embedded structs included), a map or a slice
+- Named parameters for a struct or a map, and batch insert for a slice of them
+- `Get`, `Select`, `StructScan`, `SliceScan`, `MapScan` helpers
+- Works on `*sqlx.DB`, `*sqlx.Tx` and `*sqlx.Conn`, with `...Context` variants
+- Custom field mapping (`NameMapper`, `db` tags) and an unsafe mode that tolerates
+  destination structs with fewer fields
+- No cgo in the test suite: it runs on the pure Go `modernc.org/sqlite` driver
 
-1.3.0:
+## Install
 
-* `sqlx.DB.Connx(context.Context) *sqlx.Conn`
-* `sqlx.BindDriver(driverName, bindType)`
-* support for `[]map[string]any` to do "batch" insertions
-* allocation & perf improvements for `sqlx.In`
-
-DB.Connx returns an `sqlx.Conn`, which is an `sql.Conn`-alike consistent with
-sqlx's wrapping of other types.
-
-`BindDriver` allows users to control the bindvars that sqlx will use for drivers,
-and add new drivers at runtime.  This results in a very slight performance hit
-when resolving the driver into a bind type (~40ns per call), but it allows users
-to specify what bindtype their driver uses even when sqlx has not been updated
-to know about it by default.
-
-### Backwards Compatibility
-
-Compatibility with the most recent two versions of Go is a requirement for any
-new changes.  Compatibility beyond that is not guaranteed.
-
-Versioning is done with Go modules.  Breaking changes (eg. removing deprecated API)
-will get major version number bumps.
-
-## install
-
-    go get github.com/gookit/sqlx
-
-## issues
-
-Row headers can be ambiguous (`SELECT 1 AS a, 2 AS a`), and the result of
-`Columns()` does not fully qualify column names in queries like:
-
-```sql
-SELECT a.id, a.name, b.id, b.name FROM foos AS a JOIN foos AS b ON a.parent = b.id;
+```shell
+go get github.com/gookit/sqlx
 ```
 
-making a struct or map destination ambiguous.  Use `AS` in your queries
-to give columns distinct names, `rows.Scan` to scan them manually, or 
-`SliceScan` to get a slice of results.
-
-## usage
-
-Below is an example which shows some common use cases for sqlx.  Check 
-[sqlx_test.go](https://github.com/gookit/sqlx/blob/master/sqlx_test.go) for more
-usage.
-
+## Quick start
 
 ```go
 package main
 
 import (
-    "database/sql"
-    "fmt"
-    "log"
-    
-    _ "github.com/lib/pq"
-    "github.com/gookit/sqlx"
+	"log"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/gookit/sqlx"
 )
 
-var schema = `
-CREATE TABLE person (
-    first_name text,
-    last_name text,
-    email text
-);
-
-CREATE TABLE place (
-    country text,
-    city text NULL,
-    telcode integer
-)`
-
 type Person struct {
-    FirstName string `db:"first_name"`
-    LastName  string `db:"last_name"`
-    Email     string
-}
-
-type Place struct {
-    Country string
-    City    sql.NullString
-    TelCode int
+	FirstName string `db:"first_name"`
+	LastName  string `db:"last_name"`
+	Email     string
 }
 
 func main() {
-    // this Pings the database trying to connect
-    // use sqlx.Open() for sql.Open() semantics
-    db, err := sqlx.Connect("postgres", "user=foo dbname=bar sslmode=disable")
-    if err != nil {
-        log.Fatalln(err)
-    }
+	// Connect pings the database; use sqlx.Open for sql.Open semantics
+	db, err := sqlx.Connect("mysql", "user:pass@tcp(127.0.0.1:3306)/db?parseTime=true")
+	if err != nil {
+		log.Fatal(err) // a password in the message is masked
+	}
+	defer db.Close()
 
-    // exec the schema or fail; multi-statement Exec behavior varies between
-    // database drivers;  pq will exec them all, sqlite3 won't, ymmv
-    db.MustExec(schema)
-    
-    tx := db.MustBegin()
-    tx.MustExec("INSERT INTO person (first_name, last_name, email) VALUES ($1, $2, $3)", "Jason", "Moiron", "jmoiron@jmoiron.net")
-    tx.MustExec("INSERT INTO person (first_name, last_name, email) VALUES ($1, $2, $3)", "John", "Doe", "johndoeDNE@gmail.net")
-    tx.MustExec("INSERT INTO place (country, city, telcode) VALUES ($1, $2, $3)", "United States", "New York", "1")
-    tx.MustExec("INSERT INTO place (country, telcode) VALUES ($1, $2)", "Hong Kong", "852")
-    tx.MustExec("INSERT INTO place (country, telcode) VALUES ($1, $2)", "Singapore", "65")
-    // Named queries can use structs, so if you have an existing struct (i.e. person := &Person{}) that you have populated, you can pass it in as &person
-    tx.NamedExec("INSERT INTO person (first_name, last_name, email) VALUES (:first_name, :last_name, :email)", &Person{"Jane", "Citizen", "jane.citzen@example.com"})
-    tx.Commit()
+	db.MustExec("CREATE TABLE IF NOT EXISTS person (first_name text, last_name text, email text)")
 
-    // Query the database, storing results in a []Person (wrapped in []any)
-    people := []Person{}
-    db.Select(&people, "SELECT * FROM person ORDER BY first_name ASC")
-    jason, john := people[0], people[1]
+	// a transaction with named parameters
+	tx := db.MustBegin()
+	tx.NamedExec("INSERT INTO person (first_name, last_name, email) VALUES (:first_name, :last_name, :email)",
+		&Person{"Jason", "Moiron", "jmoiron@jmoiron.net"})
+	tx.Commit()
 
-    fmt.Printf("%#v\n%#v", jason, john)
-    // Person{FirstName:"Jason", LastName:"Moiron", Email:"jmoiron@jmoiron.net"}
-    // Person{FirstName:"John", LastName:"Doe", Email:"johndoeDNE@gmail.net"}
+	// many rows into a slice
+	people := []Person{}
+	if err := db.Select(&people, "SELECT * FROM person ORDER BY first_name"); err != nil {
+		log.Fatal(err)
+	}
 
-    // You can also get a single result, a la QueryRow
-    jason = Person{}
-    err = db.Get(&jason, "SELECT * FROM person WHERE first_name=$1", "Jason")
-    fmt.Printf("%#v\n", jason)
-    // Person{FirstName:"Jason", LastName:"Moiron", Email:"jmoiron@jmoiron.net"}
+	// one row into a struct; sql.ErrNoRows when the query returns nothing
+	jason := Person{}
+	if err := db.Get(&jason, "SELECT * FROM person WHERE first_name = ?", "Jason"); err != nil {
+		log.Fatal(err)
+	}
 
-    // if you have null fields and use SELECT *, you must use sql.Null* in your struct
-    places := []Place{}
-    err = db.Select(&places, "SELECT * FROM place ORDER BY telcode ASC")
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-    usa, singsing, honkers := places[0], places[1], places[2]
-    
-    fmt.Printf("%#v\n%#v\n%#v\n", usa, singsing, honkers)
-    // Place{Country:"United States", City:sql.NullString{String:"New York", Valid:true}, TelCode:1}
-    // Place{Country:"Singapore", City:sql.NullString{String:"", Valid:false}, TelCode:65}
-    // Place{Country:"Hong Kong", City:sql.NullString{String:"", Valid:false}, TelCode:852}
+	// batch insert: a slice of structs or of maps
+	_, err = db.NamedExec(
+		"INSERT INTO person (first_name, last_name, email) VALUES (:first_name, :last_name, :email)",
+		[]Person{
+			{"Ardie", "Savea", "asavea@ab.co.nz"},
+			{"Ngani", "Laumape", "nlaumape@ab.co.nz"},
+		},
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    // Loop through rows using only one struct
-    place := Place{}
-    rows, err := db.Queryx("SELECT * FROM place")
-    for rows.Next() {
-        err := rows.StructScan(&place)
-        if err != nil {
-            log.Fatalln(err)
-        } 
-        fmt.Printf("%#v\n", place)
-    }
-    // Place{Country:"United States", City:sql.NullString{String:"New York", Valid:true}, TelCode:1}
-    // Place{Country:"Hong Kong", City:sql.NullString{String:"", Valid:false}, TelCode:852}
-    // Place{Country:"Singapore", City:sql.NullString{String:"", Valid:false}, TelCode:65}
+	// iterate rows into a reusable struct
+	rows, err := db.Queryx("SELECT * FROM person")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
 
-    // Named queries, using `:name` as the bindvar.  Automatic bindvar support
-    // which takes into account the dbtype based on the driverName on sqlx.Open/Connect
-    _, err = db.NamedExec(`INSERT INTO person (first_name,last_name,email) VALUES (:first,:last,:email)`, 
-        map[string]any{
-            "first": "Bin",
-            "last": "Smuth",
-            "email": "bensmith@allblacks.nz",
-    })
-
-    // Selects Mr. Smith from the database
-    rows, err = db.NamedQuery(`SELECT * FROM person WHERE first_name=:fn`, map[string]any{"fn": "Bin"})
-
-    // Named queries can also use structs.  Their bind names follow the same rules
-    // as the name -> db mapping, so struct fields are lowercased and the `db` tag
-    // is taken into consideration.
-    rows, err = db.NamedQuery(`SELECT * FROM person WHERE first_name=:first_name`, jason)
-    
-    
-    // batch insert
-    
-    // batch insert with structs
-    personStructs := []Person{
-        {FirstName: "Ardie", LastName: "Savea", Email: "asavea@ab.co.nz"},
-        {FirstName: "Sonny Bill", LastName: "Williams", Email: "sbw@ab.co.nz"},
-        {FirstName: "Ngani", LastName: "Laumape", Email: "nlaumape@ab.co.nz"},
-    }
-
-    _, err = db.NamedExec(`INSERT INTO person (first_name, last_name, email)
-        VALUES (:first_name, :last_name, :email)`, personStructs)
-
-    // batch insert with maps
-    personMaps := []map[string]any{
-        {"first_name": "Ardie", "last_name": "Savea", "email": "asavea@ab.co.nz"},
-        {"first_name": "Sonny Bill", "last_name": "Williams", "email": "sbw@ab.co.nz"},
-        {"first_name": "Ngani", "last_name": "Laumape", "email": "nlaumape@ab.co.nz"},
-    }
-
-    _, err = db.NamedExec(`INSERT INTO person (first_name, last_name, email)
-        VALUES (:first_name, :last_name, :email)`, personMaps)
+	for rows.Next() {
+		p := Person{}
+		if err := rows.StructScan(&p); err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 ```
+
+## Drivers and bind types
+
+| bind type | driver names |
+| --- | --- |
+| `QUESTION` (`?`) | `mysql`, `sqlite`, `sqlite3`, `nrmysql`, `nrsqlite3` |
+| `DOLLAR` (`$1`) | `postgres`, `pgx`, `pgx/v4`, `pgx/v5`, `pq-timeouts`, `cloudsqlpostgres`, `ql`, `nrpostgres`, `cockroach` |
+| `NAMED` (`:arg1`) | `oci8`, `ora`, `goracle`, `godror` |
+| `AT` (`@p1`) | `sqlserver`, `azuresql` |
+
+- `sqlx.BindType(driverName)` returns the bind type of a driver.
+- `sqlx.BindDriver(driverName, bindType)` registers a driver that is not listed above.
+- `db.Rebind(query)` converts a `?` query to the bindvar of the driver.
+- `sqlx.In(query, args...)` expands a slice to the right number of `?` placeholders. It
+  always works on `?`, whatever the driver: write `IN (?)` and rebind the result for
+  PostgreSQL.
+
+## Differences from upstream
+
+- The module path is `github.com/gookit/sqlx`; the API stays compatible with
+  `jmoiron/sqlx`.
+- The pure Go `modernc.org/sqlite` driver (`sqlite`) is mapped to `QUESTION` and used by
+  the test suite, so the tests need no cgo. `mattn/go-sqlite3` is no longer a dependency.
+- Integrated upstream fixes: a `?` inside a string or comment is left alone by `Rebind`
+  (#768), `Conn` has the named-query methods of `DB`/`Tx` (#780), a PostgreSQL `::` cast
+  right after a named parameter is supported (#1004), `Get` no longer touches the
+  destination when it returns `sql.ErrNoRows` (#1005), a password in a connection error is
+  masked (#1006), plus #757, #798, #805, #811, #846, #858, #938, #953, #962, #979, #993
+  and #1003.
+- `any` instead of `interface{}`; Go 1.24 or later is required.
+- CI runs on GitHub Actions only, the old CircleCI config is gone.
+
+## Notes
+
+- `Row.Scan` refuses `*sql.RawBytes`, like `database/sql` does for `QueryRow`.
+- Multi-statement `Exec` behaves differently per driver: `pq` runs them all, sqlite does
+  not.
+- A `SELECT *` with nullable columns needs `sql.Null*` (or a pointer) in the destination
+  struct.
+- `sqlx.Open`/`Connect` mask the password of a malformed DSN in the returned error.
+
+## Development
+
+```shell
+make test-race   # go test -race -count=1 ./...
+make lint        # go vet ./... && staticcheck -checks=all ./...
+make vuln-check  # govulncheck ./...
+```
+
+CI runs `go test ./...` and `go vet ./...` on Go 1.24.x and 1.26.x against a PostgreSQL
+service. Pushing a `v*` tag runs the `Tag-release` workflow, which writes the release
+notes from the commit log with [chlog](https://github.com/gookit/gitw).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
