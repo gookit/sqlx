@@ -53,40 +53,103 @@ func BindDriver(driverName string, bindType int) {
 	binds.Store(driverName, bindType)
 }
 
-// FIXME: this should be able to be tolerant of escaped ?'s in queries without
-// losing much speed, and should be to avoid confusion.
-
 // Rebind a query from the default bindtype (QUESTION) to the target bindtype.
+//
+// A '?' inside a string constant ('...' or "..."), a quoted identifier or a SQL comment
+// (-- to the end of the line, /* ... */) is left alone, so `WHERE name = 'a?b'` and a
+// commented out `?` do not consume a placeholder. A quote is escaped by doubling it
+// ('it”s') or with a backslash ('it\'s'), as the drivers accept.
 func Rebind(bindType int, query string) string {
 	switch bindType {
 	case QUESTION, UNKNOWN:
 		return query
 	}
 
-	// Add space enough for 10 params before we have to allocate
+	// room for a few params before the append has to grow
 	rqb := make([]byte, 0, len(query)+10)
 
-	var i, j int
+	var n int         // placeholder counter
+	var quote byte    // active quote character, 0 outside a string
+	var lineCmt bool  // inside a -- comment
+	var blockCmt bool // inside a /* */ comment
 
-	for i = strings.Index(query, "?"); i != -1; i = strings.Index(query, "?") {
-		rqb = append(rqb, query[:i]...)
+	for i := 0; i < len(query); i++ {
+		c := query[i]
 
-		switch bindType {
-		case DOLLAR:
-			rqb = append(rqb, '$')
-		case NAMED:
-			rqb = append(rqb, ':', 'a', 'r', 'g')
-		case AT:
-			rqb = append(rqb, '@', 'p')
+		if lineCmt {
+			rqb = append(rqb, c)
+			if c == '\n' {
+				lineCmt = false
+			}
+			continue
+		}
+		if blockCmt {
+			rqb = append(rqb, c)
+			if c == '*' && i+1 < len(query) && query[i+1] == '/' {
+				rqb = append(rqb, '/')
+				i++
+				blockCmt = false
+			}
+			continue
 		}
 
-		j++
-		rqb = strconv.AppendInt(rqb, int64(j), 10)
+		if quote != 0 {
+			rqb = append(rqb, c)
+			if c == '\\' && i+1 < len(query) {
+				// a backslash escapes the next byte inside the string
+				rqb = append(rqb, query[i+1])
+				i++
+				continue
+			}
+			if c == quote {
+				// a doubled quote is an escaped quote, not the end of the string
+				if i+1 < len(query) && query[i+1] == quote {
+					rqb = append(rqb, query[i+1])
+					i++
+					continue
+				}
+				quote = 0
+			}
+			continue
+		}
 
-		query = query[i+1:]
+		switch c {
+		case '?':
+			n++
+			switch bindType {
+			case DOLLAR:
+				rqb = append(rqb, '$')
+			case NAMED:
+				rqb = append(rqb, ':', 'a', 'r', 'g')
+			case AT:
+				rqb = append(rqb, '@', 'p')
+			}
+			rqb = strconv.AppendInt(rqb, int64(n), 10)
+		case '\'', '"':
+			quote = c
+			rqb = append(rqb, c)
+		case '-':
+			if i+1 < len(query) && query[i+1] == '-' {
+				lineCmt = true
+				rqb = append(rqb, '-', '-')
+				i++
+				continue
+			}
+			rqb = append(rqb, c)
+		case '/':
+			if i+1 < len(query) && query[i+1] == '*' {
+				blockCmt = true
+				rqb = append(rqb, '/', '*')
+				i++
+				continue
+			}
+			rqb = append(rqb, c)
+		default:
+			rqb = append(rqb, c)
+		}
 	}
 
-	return string(append(rqb, query...))
+	return string(rqb)
 }
 
 // Experimental implementation of Rebind which uses a bytes.Buffer.  The code is
