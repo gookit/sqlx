@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/go-sql-driver/mysql v1.10.1
-	github.com/gookit/assert v0.1.2-0.20261030143753-4dd8d9ef8488
+	github.com/gookit/assert v0.2.0
 	github.com/lib/pq v1.12.3
 	modernc.org/sqlite v1.39.1
 )
