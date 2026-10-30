@@ -22,7 +22,7 @@ const (
 )
 
 var defaultBinds = map[int][]string{
-	DOLLAR:   {"postgres", "pgx", "pq-timeouts", "cloudsqlpostgres", "ql", "nrpostgres", "cockroach"},
+	DOLLAR:   {"postgres", "pgx", "pgx/v4", "pgx/v5", "pq-timeouts", "cloudsqlpostgres", "ql", "nrpostgres", "cockroach"},
 	QUESTION: {"mysql", "sqlite", "sqlite3", "nrmysql", "nrsqlite3"},
 	NAMED:    {"oci8", "ora", "goracle", "godror"},
 	AT:       {"sqlserver", "azuresql"},
@@ -139,6 +139,10 @@ func asSliceForIn(i any) (v reflect.Value, ok bool) {
 // In expands slice values in args, returning the modified query string
 // and a new arg list that can be executed by a database. The `query` should
 // use the `?` bindVar.  The return value uses the `?` bindVar.
+//
+// In only expands `?` placeholders, whatever the driver: with PostgreSQL write
+// `IN (?)` and then rebind the result with db.Rebind, instead of writing `IN ($1)`,
+// which would leave the placeholder unexpanded and fail with a bindVar count error.
 func In(query string, args ...any) (string, []any, error) {
 	// argMeta stores reflect.Value and length for slices and
 	// the value itself for non-slice arguments

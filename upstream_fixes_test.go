@@ -147,3 +147,24 @@ func TestFixBoundValuesInSelect(t *testing.T) {
 		t.Errorf("select: unexpected %q", got)
 	}
 }
+
+// #962: the VALUES clause is expanded even without a closing bracket before it, such as
+// "t(a,b)VALUES(?,?)" written without spaces. NOTE: the regexp deliberately stays at a
+// bracket or a space before VALUES, the upstream `\WVALUES` variant would also match a
+// `'VALUES ('` inside a string literal.
+func TestFixBoundValuesWithoutBracket(t *testing.T) {
+	in := "INSERT INTO t(a,b)VALUES (?,?)"
+	want := "INSERT INTO t(a,b)VALUES (?,?),(?,?)"
+	if got := fixBound(in, 2); got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// #938: the pgx driver exposes versioned names, pgx/v4 and pgx/v5, which use DOLLAR.
+func TestBindTypePgxVersioned(t *testing.T) {
+	for _, name := range []string{"pgx", "pgx/v4", "pgx/v5"} {
+		if got := BindType(name); got != DOLLAR {
+			t.Errorf("BindType(%q) = %d, want DOLLAR", name, got)
+		}
+	}
+}
