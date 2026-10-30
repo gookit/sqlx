@@ -144,7 +144,13 @@ func TestNamedQueries(t *testing.T) {
 			t.Error("Expected an error with invalid prepared statement.")
 		}
 
-		_, err = db.PrepareNamed("invalid sql")
+		// A driver may defer the syntax error of a malformed statement to execution:
+		// modernc.org/sqlite prepares "invalid sql" without an error, while
+		// mattn/go-sqlite3 reported it eagerly.
+		if ns, err = db.PrepareNamed("invalid sql"); err == nil {
+			_, err = ns.Stmt.Exec()
+			_ = ns.Close()
+		}
 		if err == nil {
 			t.Error("Expected an error with invalid prepared statement.")
 		}

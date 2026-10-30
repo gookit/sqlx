@@ -90,7 +90,7 @@ func GetContext(ctx context.Context, q QueryerContext, dest interface{}, query s
 // memory, so it is not suitable for loading large data dumps, but can be useful
 // for initializing schemas or loading indexes.
 //
-// FIXME: this does not really work with multi-statement files for mattn/go-sqlite3
+// FIXME: this does not really work with multi-statement files for sqlite
 // or the go-mysql-driver/mysql drivers;  pq seems to be an exception here.  Detecting
 // this by requiring something with DriverName() and then attempting to split the
 // queries will be difficult to get right, and its current driver-specific behavior

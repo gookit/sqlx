@@ -23,7 +23,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 
 	"github.com/gookit/sqlx/reflectx"
 )
@@ -82,7 +82,7 @@ func ConnectAll() {
 	}
 
 	if TestSqlite {
-		sldb, err = Connect("sqlite3", sqdsn)
+		sldb, err = Connect("sqlite", sqdsn)
 		if err != nil {
 			fmt.Printf("Disabling SQLite:\n    %v", err)
 			TestSqlite = false

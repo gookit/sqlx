@@ -11,7 +11,7 @@ func oldBindType(driverName string) int {
 		return DOLLAR
 	case "mysql":
 		return QUESTION
-	case "sqlite3":
+	case "sqlite", "sqlite3":
 		return QUESTION
 	case "oci8", "ora", "goracle", "godror":
 		return NAMED
