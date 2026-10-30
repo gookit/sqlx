@@ -163,10 +163,11 @@ func In(query string, args ...any) (string, []any, error) {
 	for i, arg := range args {
 		if a, ok := arg.(driver.Valuer); ok {
 			var err error
-			arg, err = a.Value()
-			if err != nil {
+			if arg, err = callValuerValue(a); err != nil {
 				return "", nil, err
 			}
+			// keep the unwrapped value for the no-slice fast path below
+			args[i] = arg
 		}
 
 		if v, ok := asSliceForIn(arg); ok {
@@ -262,4 +263,17 @@ func appendReflectSlice(args []any, v reflect.Value, vlen int) []any {
 	}
 
 	return args
+}
+
+// callValuerValue returns vr.Value(), except when vr is a nil pointer whose element type
+// implements driver.Valuer: calling Value on it would panic, so it is treated as nil.
+// This mirrors the unexported helper of the database/sql package, so `In` accepts a nil
+// pointer to a value type the same way database/sql does.
+func callValuerValue(vr driver.Valuer) (v driver.Value, err error) {
+	if rv := reflect.ValueOf(vr); rv.Kind() == reflect.Pointer &&
+		rv.IsNil() &&
+		rv.Type().Elem().Implements(_valuerInterface) {
+		return nil, nil
+	}
+	return vr.Value()
 }

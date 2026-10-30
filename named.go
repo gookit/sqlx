@@ -14,6 +14,7 @@ package sqlx
 import (
 	"bytes"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
@@ -185,6 +186,16 @@ func bindArgs(names []string, arg any, m *reflectx.Mapper) ([]any, error) {
 		}
 
 		val := reflectx.FieldByIndexesReadOnly(v, t)
+		// bind the value a driver.Valuer yields (eg. sql.NullString), like database/sql does;
+		// a nil pointer to a Valuer counts as nil instead of panicking.
+		if vr, ok := val.Interface().(driver.Valuer); ok {
+			dv, err := callValuerValue(vr)
+			if err != nil {
+				return err
+			}
+			arglist = append(arglist, dv)
+			return nil
+		}
 		arglist = append(arglist, val.Interface())
 
 		return nil
@@ -224,7 +235,7 @@ func bindStruct(bindType int, query string, arg any, m *reflectx.Mapper) (string
 	return bound, arglist, nil
 }
 
-var valuesReg = regexp.MustCompile(`\)\s*(?i)VALUES\s*\(`)
+var valuesReg = regexp.MustCompile(`[)(]\s*(?i)VALUES\s*\(`)
 
 func findMatchingClosingBracketIndex(s string) int {
 	count := 0
@@ -257,7 +268,10 @@ func fixBound(bound string, loop int) string {
 	}
 	closingBracketIndex := openingBracketIndex + index + 1
 
-	var buffer bytes.Buffer
+	// pre-size the buffer: the "VALUES (...)" block is repeated loop-1 times, each
+	// separated by a comma.
+	length := closingBracketIndex + (loop-1)*(closingBracketIndex-openingBracketIndex+1) + len(bound) - closingBracketIndex
+	buffer := bytes.NewBuffer(make([]byte, 0, length))
 
 	buffer.WriteString(bound[0:closingBracketIndex])
 	for i := 0; i < loop-1; i++ {
@@ -277,7 +291,7 @@ func bindArray(bindType int, query string, arg any, m *reflectx.Mapper) (string,
 	if err != nil {
 		return "", []any{}, err
 	}
-	arrayValue := reflect.ValueOf(arg)
+	arrayValue := reflect.Indirect(reflect.ValueOf(arg))
 	arrayLen := arrayValue.Len()
 	if arrayLen == 0 {
 		return "", []any{}, fmt.Errorf("length of array is 0: %#v", arg)
@@ -421,6 +435,13 @@ func Named(query string, arg any) (string, []any, error) {
 func bindNamedMapper(bindType int, query string, arg any, m *reflectx.Mapper) (string, []any, error) {
 	t := reflect.TypeOf(arg)
 	k := t.Kind()
+
+	// a pointer to a slice is bound by its element, so []*T and *[]T behave like []T
+	if k == reflect.Ptr {
+		t = t.Elem()
+		k = t.Kind()
+	}
+
 	switch {
 	case k == reflect.Map && t.Key().Kind() == reflect.String:
 		m, ok := convertMapStringInterface(arg)

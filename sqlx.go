@@ -136,6 +136,10 @@ func isUnsafe(i any) bool {
 		return v.unsafe
 	case *Tx:
 		return v.unsafe
+	case Conn:
+		return v.unsafe
+	case *Conn:
+		return v.unsafe
 	case sql.Rows, *sql.Rows:
 		return false
 	default:
@@ -152,6 +156,10 @@ func mapperFor(i any) *reflectx.Mapper {
 	case Tx:
 		return i.Mapper
 	case *Tx:
+		return i.Mapper
+	case Conn:
+		return i.Mapper
+	case *Conn:
 		return i.Mapper
 	default:
 		return mapper()
@@ -234,7 +242,13 @@ func (r *Row) ColumnTypes() ([]*sql.ColumnType, error) {
 }
 
 // Err returns the error encountered while scanning.
+//
+// It closes the underlying rows, so a Row that is only checked with Err (no Scan call)
+// does not leak the connection. A Row built from a binding error has no rows.
 func (r *Row) Err() error {
+	if r.rows != nil {
+		_ = r.rows.Close()
+	}
 	return r.err
 }
 
@@ -483,7 +497,7 @@ func (tx *Tx) Stmtx(stmt any) *Stmt {
 	default:
 		panic(fmt.Sprintf("non-statement type %v passed to Stmtx", reflect.ValueOf(stmt).Type()))
 	}
-	return &Stmt{Stmt: tx.Stmt(s), Mapper: tx.Mapper}
+	return &Stmt{Stmt: tx.Stmt(s), unsafe: tx.unsafe, Mapper: tx.Mapper}
 }
 
 // NamedStmt returns a version of the prepared statement which runs within a transaction.
@@ -634,6 +648,18 @@ func (r *Rows) StructScan(dest any) error {
 		return err
 	}
 	return r.Err()
+}
+
+// NextResultSet behaves like sql.Rows.NextResultSet, but drops the cache of the previous
+// result set: a new result set may map its columns to different struct fields.
+func (r *Rows) NextResultSet() bool {
+	if !r.Rows.NextResultSet() {
+		return false
+	}
+	r.started = false
+	r.fields = nil
+	r.values = nil
+	return true
 }
 
 // Connect to a database and verify with a ping.
