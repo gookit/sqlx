@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gookit/goutil/x/assert"
+	"github.com/gookit/assert"
 	_ "modernc.org/sqlite"
 )
 
