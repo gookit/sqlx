@@ -1,6 +1,7 @@
 package sqlx
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
@@ -405,6 +406,78 @@ type Conn struct {
 	driverName string
 	unsafe     bool
 	Mapper     *reflectx.Mapper
+}
+
+// Prepare creates a prepared statement on the connection.
+func (c *Conn) Prepare(query string) (*sql.Stmt, error) {
+	return c.PrepareContext(context.Background(), query)
+}
+
+// Query runs a query on the connection.
+func (c *Conn) Query(query string, args ...any) (*sql.Rows, error) {
+	return c.QueryContext(context.Background(), query, args...)
+}
+
+// Queryx queries the database and returns an *sqlx.Rows.
+// Any placeholder parameters are replaced with supplied args.
+func (c *Conn) Queryx(query string, args ...any) (*Rows, error) {
+	r, err := c.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &Rows{Rows: r, unsafe: c.unsafe, Mapper: c.Mapper}, err
+}
+
+// QueryRowx queries the database and returns an *sqlx.Row.
+// Any placeholder parameters are replaced with supplied args.
+func (c *Conn) QueryRowx(query string, args ...any) *Row {
+	rows, err := c.Query(query, args...)
+	return &Row{rows: rows, err: err, unsafe: c.unsafe, Mapper: c.Mapper}
+}
+
+// Exec runs a query on the connection.
+func (c *Conn) Exec(query string, args ...any) (sql.Result, error) {
+	return c.ExecContext(context.Background(), query, args...)
+}
+
+// PrepareNamed returns an sqlx.NamedStmt.
+func (c *Conn) PrepareNamed(query string) (*NamedStmt, error) {
+	return prepareNamed(c, query)
+}
+
+// DriverName returns the driver name of the connection.
+func (c *Conn) DriverName() string {
+	return c.driverName
+}
+
+// BindNamed binds a query using the bindvar type of the connection.
+func (c *Conn) BindNamed(query string, arg any) (string, []any, error) {
+	return bindNamedMapper(BindType(c.driverName), query, arg, c.Mapper)
+}
+
+// NamedExec using this Conn.
+// Any named placeholder parameters are replaced with fields from arg.
+func (c *Conn) NamedExec(query string, arg any) (sql.Result, error) {
+	return NamedExec(c, query, arg)
+}
+
+// NamedQuery using this Conn.
+// Any named placeholder parameters are replaced with fields from arg.
+func (c *Conn) NamedQuery(query string, arg any) (*Rows, error) {
+	return NamedQuery(c, query, arg)
+}
+
+// Get using this Conn.
+// Any placeholder parameters are replaced with supplied args.
+// An error is returned if the result set is empty.
+func (c *Conn) Get(dest any, query string, args ...any) error {
+	return Get(c, dest, query, args...)
+}
+
+// Select using this Conn.
+// Any placeholder parameters are replaced with supplied args.
+func (c *Conn) Select(dest any, query string, args ...any) error {
+	return Select(c, dest, query, args...)
 }
 
 // Tx is an sqlx wrapper around sql.Tx with extra functionality
